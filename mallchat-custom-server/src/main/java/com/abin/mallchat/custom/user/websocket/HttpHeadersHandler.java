@@ -21,7 +21,7 @@ public class HttpHeadersHandler extends ChannelInboundHandlerAdapter {
                 InetSocketAddress address = (InetSocketAddress) ctx.channel().remoteAddress();
                 ip = address.getAddress().getHostAddress();
             }
-            NettyUtil.setAttr(ctx.channel(), NettyUtil.IP, ip);
+            NettyUtil.setAttr(NettyUtil.IP, ip);
         }
         ctx.fireChannelRead(msg);
     }

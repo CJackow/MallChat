@@ -85,13 +85,13 @@ public class NettyWebSocketServerHandler extends SimpleChannelInboundHandler<Tex
         WSReqTypeEnum wsReqTypeEnum = WSReqTypeEnum.of(wsBaseReq.getType());
         switch (wsReqTypeEnum) {
             case LOGIN:
-                getService().handleLoginReq(ctx.channel());
+                getService().handleLoginReq();
                 log.info("请求二维码 = " + msg.text());
                 break;
             case HEARTBEAT:
                 break;
             case AUTHORIZE:
-                getService().authorize(ctx.channel(), JSONUtil.toBean(wsBaseReq.getData(), WSAuthorize.class));
+                getService().authorize(JSONUtil.toBean(wsBaseReq.getData(), WSAuthorize.class));
                 log.info("主动认证 = " + msg.text());
             default:
                 log.info("未知类型");

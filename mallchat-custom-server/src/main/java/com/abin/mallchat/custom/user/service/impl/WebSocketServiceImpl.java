@@ -5,6 +5,7 @@ import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.json.JSONUtil;
 import com.abin.mallchat.common.common.config.ThreadPoolConfig;
+import com.abin.mallchat.common.common.config.WebContext;
 import com.abin.mallchat.common.common.event.UserOfflineEvent;
 import com.abin.mallchat.common.common.event.UserOnlineEvent;
 import com.abin.mallchat.common.user.dao.UserDao;
@@ -23,6 +24,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.mp.api.WxMpService;
 import me.chanjar.weixin.mp.bean.result.WxMpQrCodeTicket;
+import org.checkerframework.checker.units.qual.C;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
@@ -81,17 +83,16 @@ public class WebSocketServiceImpl implements WebSocketService {
     /**
      * 处理用户登录请求，需要返回一张带code的二维码
      *
-     * @param channel
      */
     @SneakyThrows
     @Override
-    public void handleLoginReq(Channel channel) {
+    public void handleLoginReq() {
         //生成随机不重复的登录码
-        Integer code = generateLoginCode(channel);
+        Integer code = generateLoginCode(WebContext.getChannel());
         //请求微信接口，获取登录码地址
         WxMpQrCodeTicket wxMpQrCodeTicket = wxMpService.getQrcodeService().qrCodeCreateTmpTicket(code, EXPIRE_SECONDS);
         //返回给前端
-        sendMsg(channel, WSAdapter.buildLoginResp(wxMpQrCodeTicket));
+        sendMsg(WebContext.getChannel(), WSAdapter.buildLoginResp(wxMpQrCodeTicket));
     }
 
     /**
@@ -117,6 +118,7 @@ public class WebSocketServiceImpl implements WebSocketService {
     @Override
     public void connect(Channel channel) {
         ONLINE_WS_MAP.put(channel, new WSChannelExtraDTO());
+        WebContext.set(channel);
     }
 
     @Override
@@ -134,14 +136,14 @@ public class WebSocketServiceImpl implements WebSocketService {
     }
 
     @Override
-    public void authorize(Channel channel, WSAuthorize wsAuthorize) {
+    public void authorize(WSAuthorize wsAuthorize) {
         //校验token
         boolean verifySuccess = loginService.verify(wsAuthorize.getToken());
         if (verifySuccess) {//用户校验成功给用户登录
             User user = userDao.getById(loginService.getValidUid(wsAuthorize.getToken()));
-            loginSuccess(channel, user, wsAuthorize.getToken());
+            loginSuccess(WebContext.getChannel(), user, wsAuthorize.getToken());
         } else { //让前端的token失效
-            sendMsg(channel, WSAdapter.buildInvalidateTokenResp());
+            sendMsg(WebContext.getChannel(), WSAdapter.buildInvalidateTokenResp());
         }
     }
 
@@ -157,7 +159,7 @@ public class WebSocketServiceImpl implements WebSocketService {
         boolean online = userCache.isOnline(user.getId());
         if (!online) {
             user.setLastOptTime(new Date());
-            user.refreshIp(NettyUtil.getAttr(channel, NettyUtil.IP));
+            user.refreshIp(NettyUtil.getAttr(NettyUtil.IP));
             applicationEventPublisher.publishEvent(new UserOnlineEvent(this, user));
         }
     }
@@ -176,15 +178,19 @@ public class WebSocketServiceImpl implements WebSocketService {
      * return 是否全下线成功
      */
     private boolean offline(Channel channel, Optional<Long> uidOptional) {
-        ONLINE_WS_MAP.remove(channel);
-        if (uidOptional.isPresent()) {
-            CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uidOptional.get());
-            if (CollectionUtil.isNotEmpty(channels)) {
-                channels.removeIf(channel1 -> channel1.equals(channel));
+        try {
+            ONLINE_WS_MAP.remove(channel);
+            if (uidOptional.isPresent()) {
+                CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uidOptional.get());
+                if (CollectionUtil.isNotEmpty(channels)) {
+                    channels.removeIf(channel1 -> channel1.equals(channel));
+                }
+                return CollectionUtil.isEmpty(ONLINE_UID_MAP.get(uidOptional.get()));
             }
-            return CollectionUtil.isEmpty(ONLINE_UID_MAP.get(uidOptional.get()));
+            return true;
+        }finally {
+            WebContext.reset();
         }
-        return true;
     }
 
     @Override

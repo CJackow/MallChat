@@ -9,9 +9,8 @@ public interface WebSocketService {
     /**
      * 处理用户登录请求，需要返回一张带code的二维码
      *
-     * @param channel
      */
-    void handleLoginReq(Channel channel);
+    void handleLoginReq();
 
     /**
      * 处理所有ws连接的事件
@@ -30,10 +29,9 @@ public interface WebSocketService {
     /**
      * 主动认证登录
      *
-     * @param channel
      * @param wsAuthorize
      */
-    void authorize(Channel channel, WSAuthorize wsAuthorize);
+    void authorize(WSAuthorize wsAuthorize);
 
     /**
      * 扫码用户登录成功通知
